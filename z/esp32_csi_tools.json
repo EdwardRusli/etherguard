@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://stevenmhernandez.github.io/ESP32-CSI-Tool",
+    "name": "ESP32 CSI Toolkit",
+    "snippet": "The ESP32 CSI Toolkit provides researchers access to Channel State Information (CSI) directly from the ESP32 microcontroller.",
+    "host_name": "stevenmhernandez.github.io",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/StevenMHernandez/ESP32-CSI-Tool",
+    "name": "StevenMHernandez/ESP32-CSI-Tool: Extract Channel State Information from WiFi  - GitHub",
+    "snippet": "The purpose of this project is to allow for the collection of Channel State Information (CSI) from the ESP32 Wi-Fi enabled microcontroller.",
+    "host_name": "github.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/solution-introduction/esp-csi/esp-csi-solution.html",
+    "name": "Introduction to ESP-CSI Solution - - — ESP-Techpedia latest documentation",
+    "snippet": "ESP-CSI (Channel State Information) is a technology provided by Espressif for obtaining the state information of Wi-Fi channels.",
+    "host_name": "docs.espressif.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.hackster.io/limengdu0117/esp-csi-diy-wifi-human-presence-detection-f80508",
+    "name": "ESP-CSI: DIY WiFi Human Presence Detection - Hackster.io",
+    "snippet": "I turned Seeed Studio XIAO ESP32s into a human detector: ESP-CSI is an incredible hack, but too finicky and power-hungry to replace radar.",
+    "host_name": "www.hackster.io",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=7XwgxTXPJKM",
+    "name": "Build a Wi-Fi Motion Detector: ESP32 & CSI Practical Guide - YouTube",
+    "snippet": "! In this comprehensive guide, we'll walk you through the practical steps of leveraging Channel State Information (CSI) to create a highly ...",
+    "host_name": "www.youtube.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://arxiv.org/html/2506.16957v1",
+    "name": "Wi-Fi Sensing Tool Release: Gathering 802.11ax Channel State Information from a Commercial Wi-Fi Access Point - arXiv",
+    "snippet": "The currently available and most widely used open-source CSI extraction tools includes CSITool [1] , Nexmon CSI Extractor [2] , Atheros CSI Tool ...",
+    "host_name": "arxiv.org",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/esp32/comments/yn1k6e/just_experimenting_with_espcsi_human_presence",
+    "name": "Just experimenting with ESP-CSI (human presence detection) and wonder if anyone has any hints? : r/esp32 - Reddit",
+    "snippet": "A device is able to sense presence and movement just by watching the variations in the wireless channels, it makes a project I got fed up with viable again.",
+    "host_name": "www.reddit.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/jonathanmuller/ESP32-gather-channel-state-information-CSI-",
+    "name": "jonathanmuller/ESP32-gather-channel-state-information-CSI-: Get CSI frames (Channel State Information) with the use of an ESP32 WiFi chip - GitHub",
+    "snippet": "This project allows to extract WiFi CSI (Channel State Information) frames from compatible AP by using an ESP32 chip. Those CSI frames can be processed in ...",
+    "host_name": "github.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://ieeexplore.ieee.org/document/10151089",
+    "name": "A Low-cost ESP32-driven Wireless Key Generation System Based on Response Mechanism",
+    "snippet": "Since Channel State Information (CSI) is a fine-grained characterization of channel information, there are currently many studies using CSI for key generation.",
+    "host_name": "ieeexplore.ieee.org",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://esp32.com/viewtopic.php?t=9733",
+    "name": "How can I get CSI (channel state information) from my own ESP32 Chip?",
+    "snippet": "I just follow the WiFi documentation wifi.rst in esp-idf directory to modify the given example \"station\" to get channel state information. It works well. Missing: tool | Show results with: tool",
+    "host_name": "esp32.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

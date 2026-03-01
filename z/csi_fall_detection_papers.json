@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://www.researchgate.net/publication/372848495_Deep_Learning_Based_Fall_Detection_using_WiFi_Channel_State_Information",
+    "name": "(PDF) Deep Learning-Based Fall Detection Using WiFi Channel State",
+    "snippet": "To address these issues, we propose a novel, deep learning based fall detection technique. First, we implement different WiFi CSI collection tools and evaluate ...",
+    "host_name": "www.researchgate.net",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://ieeexplore.ieee.org/document/10198440",
+    "name": "Deep Learning-Based Fall Detection Using WiFi Channel State Information",
+    "snippet": "We propose a novel, deep learning based fall detection technique. First, we implement different WiFi CSI collection tools and evaluate their potential for fall ... Missing: paper | Show results with: paper",
+    "host_name": "ieeexplore.ieee.org",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.sciencedirect.com/science/article/pii/S2666165925001450",
+    "name": "A mobile receiver WiFi-CSI approach for fall detection of construction",
+    "snippet": "This study introduces a novel fall detection method for construction workers that uses WiFi Channel State Information (CSI) with mobile smartphone receivers ...",
+    "host_name": "www.sciencedirect.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10049159",
+    "name": "Feasibility Analysis of Using Channel State Information (CSI) Acquired",
+    "snippet": "A new method has been conceived to identify construction worker falls by analyzing the CSI signals extracted from commercial Wi-Fi routers.",
+    "host_name": "pmc.ncbi.nlm.nih.gov",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://cs229.stanford.edu/proj2016/report/NaruiDayalDeligiannis-HumanFallDetectionUsingWiFi-report.pdf",
+    "name": "[PDF] Human Fall Detection in Indoor Environments Using Channel State",
+    "snippet": "The aim of this project is to detect the fall of an individual in indoor environments by monitoring Wi-Fi channel state information (CSI) including amplitude ...",
+    "host_name": "cs229.stanford.edu",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://open.library.ubc.ca/media/stream/pdf/24/1.0365967/4",
+    "name": "[PDF] Using Wi-Fi Channel State Information (CSI) for Human Activity",
+    "snippet": "Our results show that DeepFalls can outperform the state-of- the-art method RT-Fall, in untrained environments with sensitivity and specificity improve- ments ...",
+    "host_name": "open.library.ubc.ca",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://eprints.whiterose.ac.uk/id/eprint/202278/8/Deep_Learning_Based_Fall_Detection_Using_WiFi_Channel_State_Information.pdf",
+    "name": "[PDF] Deep Learning Based Fall Detection using WiFi Channel State Information",
+    "snippet": "In this paper, we proposed a deep learning based fall detection system using WiFi CSI. In particular, we developed a deep learning classifier based on a ...",
+    "host_name": "eprints.whiterose.ac.uk",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://arxiv.org/html/2407.12537v1",
+    "name": "Collaborative Fall Detection and Response using Wi-Fi Sensing and",
+    "snippet": "This paper presents a collaborative fall detection and response system integrating Wi-Fi sensing with robotic assistance.",
+    "host_name": "arxiv.org",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://journals.sagepub.com/doi/10.1177/20552076241259047",
+    "name": "Cross-individual fall detection system based on channel state information",
+    "snippet": "This study aimed to develop a resilient real-time fall detection system across individuals utilizing CSI, named TCS-Fall. This method was ...",
+    "host_name": "journals.sagepub.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.intechopen.com/journals/1/articles/693",
+    "name": "Real-Time, Non-Intrusive Fall Detection via Wi-Fi CSI - IntechOpen",
+    "snippet": "This study introduces a non-intrusive fall detection system using Wi-Fi Channel State Information (CSI) for Human Activity Recognition (HAR). The dataset ...",
+    "host_name": "www.intechopen.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

@@ -156,8 +156,8 @@ def generate_sdp(
     N_Δ = num_lag_samples
     W_T = window_size
     
-    # Step 1: Compute ACF tensor ρ ∈ R^(N_Δ × W_T × N_S)
-    ρ = np.zeros((N_Δ, W_T, N_S), dtype=np.float64)
+    # Step 1: Compute ACF tensor ρ ∈ C^(N_Δ × W_T × N_S)
+    ρ = np.zeros((N_Δ, W_T, N_S), dtype=np.complex128)
     
     for n in range(N_Δ):
         for i in range(W_T):
@@ -177,14 +177,15 @@ def generate_sdp(
                 mag_curr = np.abs(H_curr)
                 mag_ref = np.abs(H_ref)
                 
-                # Compute ACF element (Equation 9)
+                # Compute ACF element (Equation 9) using complex phase
                 if mag_curr > 1e-10 and mag_ref > 1e-10:
-                    numerator = np.abs(H_curr * np.conj(H_ref))
+                    numerator = H_curr * np.conj(H_ref)
                     denominator = mag_curr * mag_ref
                     ρ[n, i, j] = numerator / denominator
     
-    # Step 2: Aggregate across subcarriers (Equation 10 numerator)
-    S_num = np.sum(ρ, axis=2) / N_S
+    # Step 2: Coherent sum across subcarriers (preserves phase shift/Doppler)
+    # Then take magnitude (strictly positive for probabilistic normalization)
+    S_num = np.abs(np.mean(ρ, axis=2))
     
     # Step 3: Probabilistic normalization (Equation 10 denominator)
     if normalize:
@@ -196,6 +197,67 @@ def generate_sdp(
     
     return S
 
+
+def generate_sdp_fast(
+    H: np.ndarray,
+    num_lag_samples: int,
+    window_size: int,
+    normalize: bool = True
+) -> np.ndarray:
+    """
+    Vectorized SDP generation — ~50x faster than generate_sdp().
+
+    Parameters / Returns: same as generate_sdp().
+    """
+    N_T, N_S = H.shape
+    N_Δ = num_lag_samples
+    W_T = window_size
+
+    # Clamp W_T so packet_idx = i + N_Δ stays within N_T
+    W_T = min(W_T, N_T - N_Δ)
+    if W_T <= 0:
+        return np.zeros((N_Δ, 1), dtype=np.float64)
+
+    # Build index arrays for current and reference packets
+    # packet_idx[i] = i + N_Δ  for i in [0, W_T)
+    i_arr = np.arange(W_T)
+    packet_idx = i_arr + N_Δ  # (W_T,)
+
+    # For each lag n, ref_idx = packet_idx - n
+    n_arr = np.arange(N_Δ)  # (N_Δ,)
+
+    # H_curr: shape (W_T, N_S)
+    H_curr = H[packet_idx, :]  # (W_T, N_S)
+    mag_curr = np.abs(H_curr)  # (W_T, N_S)
+
+    # S will be (N_Δ, W_T)
+    S_num = np.zeros((N_Δ, W_T), dtype=np.float64)
+
+    for n in range(N_Δ):
+        ref_idx = packet_idx - n  # (W_T,)
+        H_ref = H[ref_idx, :]    # (W_T, N_S)
+        mag_ref = np.abs(H_ref)  # (W_T, N_S)
+
+        # ACF: normalized complex cross-correlation
+        denom = mag_curr * mag_ref
+        valid = denom > 1e-10
+        acf_norm = np.zeros_like(H_curr, dtype=np.complex64)
+        acf_norm[valid] = (H_curr * np.conj(H_ref))[valid] / denom[valid]
+
+        # Coherent sum across subcarriers (preserves phase/Doppler!)
+        # then take magnitude to keep it strictly non-negative for normalization
+        corr = acf_norm.mean(axis=1) # (W_T,)
+        S_num[n, :] = np.abs(corr)
+
+    # Probabilistic normalization
+    if normalize:
+        col_sums = S_num.sum(axis=0, keepdims=True)
+        col_sums = np.maximum(col_sums, 1e-10)
+        S = S_num / col_sums
+    else:
+        S = S_num
+
+    return S
 
 # =============================================================================
 # ALGORITHM 2: MULTI-HEAD SELF-ATTENTION
@@ -1032,17 +1094,22 @@ class XFallInferenceEngine:
     """
     Real-time XFall inference pipeline.
 
-    Collects CSI frames into a rolling buffer, then runs xfall_inference
+    Collects CSI frames into a rolling buffer, then runs inference
     once enough frames accumulate for a full window.
+
+    Supports two modes:
+      - PyTorch model (when model_path is provided) — uses trained weights
+      - NumPy fallback (no model_path) — uses random weights (demo only)
     """
 
     def __init__(self, params: Dict, threshold: float = 0.5,
-                 csv_path: str = "events.csv"):
+                 csv_path: str = "events.csv", model_path: str = None):
         from collections import deque
         from event_logger import EventLogger
 
         self.params = params
         self.threshold = threshold
+        self.use_pytorch = model_path is not None
 
         # Buffer needs N_Δ + W_T frames for one inference window
         self.window_size = params['N_Δ'] + params['W_T'] + 50
@@ -1051,16 +1118,36 @@ class XFallInferenceEngine:
         self.buffer = deque(maxlen=self.window_size)
         self._frames_since_inference = 0
 
-        # Initialize model weights
-        self.spatial_weights = init_spatial_weights(
-            params['N_Δ'], params['d_s'], params['n_heads'],
-            params['n_layers_spatial']
-        )
-        self.temporal_weights = init_temporal_weights(
-            params['W_T'], params['d_s'], params['n_heads'],
-            params['n_layers_temporal']
-        )
-        self.mlp_weights = init_mlp_weights(params['d_s'], [128, 64])
+        if self.use_pytorch:
+            # Load trained PyTorch model
+            import torch
+            from model import get_model
+
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.torch_model = get_model(
+                N_Δ=params['N_Δ'], W_T=params['W_T'], d_s=params['d_s'],
+                n_heads=params['n_heads'],
+                n_layers_spatial=params['n_layers_spatial'],
+                n_layers_temporal=params['n_layers_temporal'],
+            ).to(self.device)
+
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
+            self.torch_model.load_state_dict(checkpoint['model_state_dict'])
+            self.torch_model.eval()
+            print(f"[inference] Loaded trained model from {model_path}")
+            print(f"[inference] Device: {self.device}")
+        else:
+            # Fallback: random NumPy weights (demo/testing only)
+            self.spatial_weights = init_spatial_weights(
+                params['N_Δ'], params['d_s'], params['n_heads'],
+                params['n_layers_spatial']
+            )
+            self.temporal_weights = init_temporal_weights(
+                params['W_T'], params['d_s'], params['n_heads'],
+                params['n_layers_temporal']
+            )
+            self.mlp_weights = init_mlp_weights(params['d_s'], [128, 64])
+            print("[inference] No model loaded — using random weights (demo mode)")
 
         # Event logger and alert FSM
         self.logger = EventLogger(csv_path)
@@ -1086,11 +1173,14 @@ class XFallInferenceEngine:
         """Run XFall inference on the current buffer."""
         frames = list(self.buffer)
 
-        prediction, confidence = xfall_inference(
-            frames, self.params,
-            self.spatial_weights, self.temporal_weights,
-            self.mlp_weights, threshold=self.threshold
-        )
+        if self.use_pytorch:
+            prediction, confidence = self._run_pytorch_inference(frames)
+        else:
+            prediction, confidence = xfall_inference(
+                frames, self.params,
+                self.spatial_weights, self.temporal_weights,
+                self.mlp_weights, threshold=self.threshold
+            )
 
         self._total_inferences += 1
 
@@ -1115,6 +1205,27 @@ class XFallInferenceEngine:
 
         # Alert logic
         self.alert.update(prediction, confidence)
+
+    def _run_pytorch_inference(self, frames):
+        """Run inference using the trained PyTorch model."""
+        import torch
+
+        # Build CSI matrix from frames
+        H = frames_to_matrix(frames)
+
+        # Generate SDP
+        S = generate_sdp_fast(H, self.params['N_Δ'], self.params['W_T'])
+
+        # Convert to tensor: (1, N_Δ, W_T)
+        S_tensor = torch.FloatTensor(S).unsqueeze(0).to(self.device)
+
+        # Model inference
+        with torch.no_grad():
+            logit = self.torch_model(S_tensor)
+            prob = torch.sigmoid(logit).item()
+
+        prediction = 1 if prob >= self.threshold else 0
+        return prediction, prob
 
     def close(self):
         self.logger.close()
@@ -1145,6 +1256,8 @@ def main():
                         help='Simulation duration in seconds (default: 30)')
     parser.add_argument('--baudrate', type=int, default=115200,
                         help='Serial baud rate (default: 115200)')
+    parser.add_argument('--model',
+                        help='Path to trained xfall_model.pth checkpoint')
     parser.add_argument('--debug', action='store_true',
                         help='Print raw serial lines for debugging')
     args = parser.parse_args()
@@ -1173,6 +1286,7 @@ def main():
     print(f"  Window:    {params['N_Δ'] + params['W_T'] + 50} frames")
     print(f"  Threshold: {args.threshold:.0%}")
     print(f"  Mode:      {'Simulation' if args.simulate else f'Live ({args.port})'}")
+    print(f"  Model:     {args.model or '(random weights — demo mode)'}")
     print(f"  Events:    {args.csv}")
     print("=" * 60 + "\n")
 
@@ -1180,6 +1294,7 @@ def main():
         params=params,
         threshold=args.threshold,
         csv_path=args.csv,
+        model_path=args.model,
     )
 
     try:

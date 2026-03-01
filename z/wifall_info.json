@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://github.com/RS2002/ESP32-Realtime-System",
+    "name": "RS2002/ESP32-Realtime-System - GitHub",
+    "snippet": "CSI Display: Displays CSI amplitude, phase, and spectrum data. LoFi: 2D Image-Based Wi-Fi Positioning Tag Generator: Generates positioning tags using a 2D image ...",
+    "host_name": "github.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.preprints.org/manuscript/202602.0018",
+    "name": "Device-Free Hand Gesture Recognition with ESP32 Wi-Fi CSI",
+    "snippet": "The results demonstrate that ESP32-based Wi-Fi CSI, coupled with principled signal modeling and lightweight deep learning, can support practical ...",
+    "host_name": "www.preprints.org",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/RS2002/CSI-BERT",
+    "name": "GitHub - RS2002/CSI-BERT",
+    "snippet": "Official Repository for The Paper, Finding the Missing Data: A BERT-inspired Approach Against Package Loss in Wireless Sensing",
+    "host_name": "github.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://arxiv.org/html/2412.04783v3",
+    "name": "Cross Domain Wireless Sensing via Local Distribution Alignment - arXiv",
+    "snippet": "In our experiment, we utilize two datasets: the publicly available WiGesture dataset [3] and a novel dataset named WiFall, which is proposed ...",
+    "host_name": "arxiv.org",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://zenodo.org/records/8021099",
+    "name": "WiFi CSI-Based Long-Range Through-Wall Human Activity Recognition",
+    "snippet": "WiFi CSI-Based Long-Range Through-Wall Human Activity Recognition with the ESP32. This repository contains the WiFi CSI human presence detection and ... Missing: RS2002 hardware",
+    "host_name": "zenodo.org",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  }
+]

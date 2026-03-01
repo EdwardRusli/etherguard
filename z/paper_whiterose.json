@@ -1,0 +1,37 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "html": "",
+    "metadata": {
+      "Author": "Chu, Yi, Cumanan, Kanapathippillai, Sankarpandi, Sathish, Smith, Stephen Leslie and Dobre, Octavia A.",
+      "CreationDate": "D:20260210131349Z00'00'",
+      "Creator": "LaTeX with hyperref",
+      "EncryptFilterName": null,
+      "IsAcroFormPresent": false,
+      "IsCollectionPresent": false,
+      "IsLinearized": false,
+      "IsSignaturesPresent": false,
+      "IsXFAPresent": false,
+      "Language": null,
+      "ModDate": "D:20260210131349Z00'00'",
+      "PDFFormatVersion": "1.7",
+      "Producer": "GPL Ghostscript 9.54.0",
+      "Subject": "IEEE Access;2023;11; ;10.1109/ACCESS.2023.3300726",
+      "Title": "Deep Learning Based Fall Detection using WiFi Channel State Information"
+    },
+    "publishedTime": "Tue, 10 Feb 2026 13:13:51 GMT",
+    "textRepresentation": "",
+    "title": "Deep Learning Based Fall Detection using WiFi Channel State Information",
+    "url": "https://eprints.whiterose.ac.uk/id/eprint/202278/8/Deep_Learning_Based_Fall_Detection_Using_WiFi_Channel_State_Information.pdf",
+    "usage": {
+      "tokens": 0
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 0
+    }
+  },
+  "status": 20000
+}

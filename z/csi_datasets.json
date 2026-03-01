@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://github.com/Gi-z/CSI-Data",
+    "name": "Repository collating CSI data samples and datasets. - GitHub",
+    "snippet": "A dataset for Wi-Fi-based human activity recognition in line-of-sight and ... FallDeFi: Ubiquitous Fall Detection using Commodity Wi-Fi Devices. PACM ...",
+    "host_name": "github.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.sciencedirect.com/science/article/pii/S1877050921024509",
+    "name": "Human Activity Recognition based on Wi-Fi CSI Data",
+    "snippet": "This work introduces a full pipeline of a Wi-Fi CSI-based system for human activity recognition that assesses and compares two deep learning methods.",
+    "host_name": "www.sciencedirect.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.mdpi.com/1424-8220/25/5/1547",
+    "name": "Human Activity Recognition Through Augmented WiFi CSI Signals",
+    "snippet": "In this study, we investigate human activity recognition (HAR) using WiFi channel state information (CSI) signals, employing a single-layer gated recurrent ...",
+    "host_name": "www.mdpi.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.nature.com/articles/s41597-025-06238-4",
+    "name": "EHUNAM, a WiFi CSI-based dataset for human and machine sensing",
+    "snippet": "Some of these applications include human activity recognition (HAR), people counting (PC), people identification (PI), and people tracking (PT).",
+    "host_name": "www.nature.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://open.library.ubc.ca/soa/cIRcle/collections/ubctheses/24/items/1.0365967",
+    "name": "Using Wi-Fi channel state information (CSI) for human activity",
+    "snippet": "Since accurate Wi-Fi based fall detectors can greatly benefit the well-being of the elderly, we propose DeepFalls: Using Wi-Fi Spectrograms and ...",
+    "host_name": "open.library.ubc.ca",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://ieee-dataport.org/open-access/csi-human-activity",
+    "name": "CSI Human Activity | IEEE DataPort",
+    "snippet": "This paper's focal point is to classify human activities such as EMPTY, LYING, SIT, SIT-DOWN, STAND, STAND-UP, WALK, and FALL with deep neural networks.",
+    "host_name": "ieee-dataport.org",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dl.acm.org/doi/10.1016/j.procs.2021.12.211",
+    "name": "Human Activity Recognition based on Wi-Fi CSI Data",
+    "snippet": "This work introduces a full pipeline of a Wi-Fi CSI-based system for human activity recognition that assesses and compares two deep learning methods. We analyze ...",
+    "host_name": "dl.acm.org",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.researchgate.net/publication/372848495_Deep_Learning_Based_Fall_Detection_using_WiFi_Channel_State_Information",
+    "name": "(PDF) Deep Learning-Based Fall Detection Using WiFi Channel",
+    "snippet": "To develop a highly accurate fall detection technique, we construct a comprehensive dataset, which consists of over 700 CSI samples including different types of ...",
+    "host_name": "www.researchgate.net",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/ludlows/CSI-Activity-Recognition",
+    "name": "ludlows/CSI-Activity-Recognition - GitHub",
+    "snippet": "Download the public dataset from here. ... Inside the dataset, there are 7 different human activities: bed , fall , pickup , run , sitdown , standup and walk .",
+    "host_name": "github.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://neurips.cc/virtual/2025/poster/121605",
+    "name": "CSI-Bench: A Large-Scale In-the-Wild Dataset for Multi-task WiFi",
+    "snippet": "Each dataset is designed to support one or more sensing tasks, including fall detection (Fall), breathing monitoring (Breath), localization (Loc ...",
+    "host_name": "neurips.cc",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

@@ -3,3 +3,5 @@ esp-csi/
 test_serial/
 .venv/
 data/wifall/
+data/
+xfall/
