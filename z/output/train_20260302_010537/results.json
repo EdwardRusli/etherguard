@@ -1,0 +1,14 @@
+{
+  "best_val_acc": 0.8336192109777015,
+  "test_acc": 0.848458904109589,
+  "test_per_class_acc": {
+    "class_2": 0.8571428571428571,
+    "class_1": 0.9501779359430605,
+    "class_3": 0.9163987138263665,
+    "class_0": 0.6631205673758865
+  },
+  "total_params": 24804,
+  "model_type": "lightweight",
+  "epochs_trained": 50,
+  "final_lr": 0.000125
+}

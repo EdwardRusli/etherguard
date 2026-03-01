@@ -17,6 +17,7 @@ from typing import Optional, Dict, Tuple, List
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
+import os
 
 # Import local modules
 import sys
@@ -24,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from csi_receiver import CSIReceiver, CSIBuffer, CSIDataPacket
 from preprocessing import CSIPreprocessor, FeatureExtractor, SpectrogramGenerator
-from models.fall_detection_model import ModelFactory, FallDetectionModel, LightweightFallDetector
+from fall_detection_model import ModelFactory, FallDetectionModel, LightweightFallDetector
 
 # Configure logging
 logging.basicConfig(

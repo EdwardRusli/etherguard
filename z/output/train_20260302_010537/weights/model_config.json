@@ -1,0 +1,30 @@
+{
+  "model_type": "lightweight",
+  "input_dim": 10400,
+  "num_classes": 4,
+  "window_size": 100,
+  "activity_map": {
+    "fall": 0,
+    "walk": 1,
+    "sit": 2,
+    "stand": 3,
+    "bed": 0,
+    "run": 1,
+    "pickup": 3,
+    "standup": 3,
+    "sitdown": 2,
+    "lyp": 0,
+    "lyb": 0,
+    "empty": 4,
+    "falling": 0,
+    "walking": 1,
+    "sitting": 2,
+    "standing": 3,
+    "jump": 0,
+    "jumping": 0,
+    "0": 0,
+    "1": 1,
+    "2": 2,
+    "3": 3
+  }
+}

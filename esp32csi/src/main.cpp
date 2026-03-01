@@ -19,20 +19,21 @@ const char* ROUTER_PASSWORD = "semogasuksesamin"; // Replace with your router pa
 
 // CSI Configuration
 #define CSI_BUFFER_SIZE 512
-#define CSI_SUBCARRIERS 64  // Number of CSI subcarriers (typically 64 for 20MHz)
+#define CSI_SUBCARRIERS 64   // Number of CSI subcarriers (typically 64 for 20MHz)
+#define OUTPUT_SUBCARRIERS 104  // Output 104 to match WiFall dataset format
 
 // Serial Configuration
-#define SERIAL_BAUD_RATE 115200  // High baud rate for real-time CSI streaming
+#define SERIAL_BAUD_RATE 19200  // Slower baud rate for debugging
 
 // Global variables
 bool connected = false;
 unsigned long lastCsiTime = 0;
 uint32_t csiCount = 0;
 
-// CSI data structure
+// CSI data structure - outputs 104 values to match WiFall format
 typedef struct {
-    int16_t amplitude[CSI_SUBCARRIERS];
-    int16_t phase[CSI_SUBCARRIERS];
+    int16_t amplitude[OUTPUT_SUBCARRIERS];  // Padded to 104
+    int16_t phase[OUTPUT_SUBCARRIERS];      // Padded to 104
     uint32_t timestamp;
     int8_t rssi;
     uint8_t channel;
@@ -51,13 +52,14 @@ void wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
     // Calculate number of subcarriers
     int num_subcarriers = csi_len / 2;  // Each subcarrier has I and Q components
     
-    // Prepare data packet
+    // Prepare data packet - initialize all to zero (padding)
     CSIData csi_data;
+    memset(&csi_data, 0, sizeof(csi_data));  // Zero-fill entire structure
     csi_data.timestamp = micros();
     csi_data.rssi = data->rx_ctrl.rssi;
     csi_data.channel = data->rx_ctrl.channel;
     
-    // Extract amplitude and phase from CSI
+    // Extract amplitude and phase from CSI (only first 64 subcarriers)
     // CSI data format: Interleaved I (real) and Q (imaginary) components
     for (int i = 0; i < num_subcarriers && i < CSI_SUBCARRIERS; i++) {
         int8_t real = csi_ptr[i * 2];
@@ -69,6 +71,7 @@ void wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
         // Calculate phase: atan2(imag, real)
         csi_data.phase[i] = (int16_t)(atan2((float)imag, (float)real) * 1000);  // Scale for integer transmission
     }
+    // Remaining amplitude[64-103] and phase[64-103] are already zero from memset
     
     // Send data via serial in binary format
     // Packet format: [HEADER][TIMESTAMP][RSSI][CHANNEL][AMPLITUDE_DATA][PHASE_DATA]
@@ -86,14 +89,14 @@ void wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
     Serial.write((uint8_t)csi_data.rssi);
     Serial.write(csi_data.channel);
     
-    // Send amplitude data
-    for (int i = 0; i < CSI_SUBCARRIERS; i++) {
+    // Send amplitude data (104 subcarriers)
+    for (int i = 0; i < OUTPUT_SUBCARRIERS; i++) {
         Serial.write((uint8_t)(csi_data.amplitude[i] & 0xFF));
         Serial.write((uint8_t)((csi_data.amplitude[i] >> 8) & 0xFF));
     }
     
-    // Send phase data
-    for (int i = 0; i < CSI_SUBCARRIERS; i++) {
+    // Send phase data (104 subcarriers)
+    for (int i = 0; i < OUTPUT_SUBCARRIERS; i++) {
         Serial.write((uint8_t)(csi_data.phase[i] & 0xFF));
         Serial.write((uint8_t)((csi_data.phase[i] >> 8) & 0xFF));
     }
@@ -104,7 +107,7 @@ void wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
     for (int i = 0; i < 4; i++) checksum ^= ((uint8_t*)&csi_data.timestamp)[i];
     checksum ^= (uint8_t)csi_data.rssi;
     checksum ^= csi_data.channel;
-    for (int i = 0; i < CSI_SUBCARRIERS * 2; i++) {
+    for (int i = 0; i < OUTPUT_SUBCARRIERS * 2; i++) {
         checksum ^= ((uint8_t*)csi_data.amplitude)[i];
     }
     Serial.write(checksum);

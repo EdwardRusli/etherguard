@@ -1,0 +1,1 @@
+import serial; s=serial.Serial('COM6', 921600); print('Connected'); [print(f'Byte: {hex(ord(s.read(1)))}') for _ in range(100)]
