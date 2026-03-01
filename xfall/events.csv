@@ -1,0 +1,5 @@
+id,timestamp,datetime,event_type,confidence,details
+1,1772374489.226,2026-03-01 22:14:49,prediction_FALL,0.5001,inference #1
+2,1772374490.677,2026-03-01 22:14:50,prediction_FALL,0.5001,inference #2
+3,1772374490.678,2026-03-01 22:14:50,fall_detected,0.5001,Confirmed after 2 consecutive windows
+4,1772374491.984,2026-03-01 22:14:51,prediction_FALL,0.5001,inference #3

@@ -888,24 +888,331 @@ def demo():
     return S, prediction, confidence
 
 
-if __name__ == "__main__":
-    # Parse CSI data
-    frames = []
-    for line in serial_port:
-        frame = parse_csi_line(line)
-        if frame:
-            frames.append(frame)
+# =============================================================================
+# ALERT STATE MACHINE
+# =============================================================================
 
-    # Parameters
+class AlertFSM:
+    """
+    Alert finite state machine with debounce logic.
+
+    States:
+        idle        — no activity of concern
+        monitoring  — 1 fall prediction seen, waiting for confirmation
+        fall_alert  — confirmed fall (2 consecutive windows >= threshold)
+        cooldown    — post-alert, waiting for non-fall to reset
+    """
+    IDLE = 'idle'
+    MONITORING = 'monitoring'
+    FALL_ALERT = 'fall_alert'
+    COOLDOWN = 'cooldown'
+
+    def __init__(self, threshold: float = 0.60, cooldown_sec: float = 10.0,
+                 logger=None):
+        self.threshold = threshold
+        self.cooldown_sec = cooldown_sec
+        self.logger = logger
+        self.state = self.IDLE
+        self._consecutive_falls = 0
+        self._non_fall_start = None
+
+    def update(self, prediction: int, confidence: float):
+        """Process a new prediction. Returns the current state."""
+        import time
+        is_fall = (prediction == 1 and confidence >= self.threshold)
+
+        if self.state == self.IDLE:
+            if is_fall:
+                self._consecutive_falls = 1
+                self.state = self.MONITORING
+
+        elif self.state == self.MONITORING:
+            if is_fall:
+                self._consecutive_falls += 1
+                if self._consecutive_falls >= 2:
+                    self.state = self.FALL_ALERT
+                    self._non_fall_start = None
+                    print("\n" + "=" * 60)
+                    print("  ** FALL DETECTED **")
+                    print(f"  Confidence: {confidence:.1%}")
+                    print("=" * 60 + "\n")
+                    if self.logger:
+                        self.logger.log_event(
+                            "fall_detected", confidence,
+                            f"Confirmed after {self._consecutive_falls} consecutive windows"
+                        )
+            else:
+                self._consecutive_falls = 0
+                self.state = self.IDLE
+
+        elif self.state == self.FALL_ALERT:
+            self.state = self.COOLDOWN
+            self._non_fall_start = time.time() if not is_fall else None
+
+        elif self.state == self.COOLDOWN:
+            if is_fall:
+                self._non_fall_start = None
+            else:
+                if self._non_fall_start is None:
+                    self._non_fall_start = time.time()
+                elapsed = time.time() - self._non_fall_start
+                if elapsed >= self.cooldown_sec:
+                    self.state = self.IDLE
+                    self._consecutive_falls = 0
+                    print("[alert] All clear — returned to idle")
+                    if self.logger:
+                        self.logger.log_event("all_clear", 0.0,
+                                              f"No fall for {self.cooldown_sec}s")
+
+        return self.state
+
+
+# =============================================================================
+# SIMULATED CSI SOURCE
+# =============================================================================
+
+def simulate_csi_stream(n_subcarriers: int = 64, rate_hz: float = 100.0):
+    """
+    Generate synthetic CSI frames for testing without hardware.
+    Cycles through phases: idle -> walk -> fall -> idle.
+    """
+    import time
+
+    interval = 1.0 / rate_hz
+    phase_duration = 5.0  # seconds per phase
+    phases = ['idle', 'walk', 'fall', 'idle']
+
+    print("[simulate] Starting synthetic CSI stream")
+    print(f"[simulate] Phases: {' -> '.join(phases)} ({phase_duration}s each)")
+
+    t = 0.0
+    while True:
+        phase_idx = int(t / phase_duration) % len(phases)
+        phase = phases[phase_idx]
+
+        if phase == 'idle':
+            base = 10.0 + np.random.randn(n_subcarriers) * 0.5
+        elif phase == 'walk':
+            base = 10.0 + np.sin(2 * np.pi * 2.0 * t) * 3.0
+            base = base + np.random.randn(n_subcarriers) * 1.0
+        elif phase == 'fall':
+            fall_progress = (t % phase_duration) / phase_duration
+            if fall_progress < 0.3:
+                base = 10.0 + fall_progress * 30.0
+            else:
+                base = 10.0 + (1.0 - fall_progress) * 5.0
+            base = base + np.random.randn(n_subcarriers) * 2.0
+        else:
+            base = 10.0 + np.random.randn(n_subcarriers) * 0.5
+
+        amplitude = np.abs(base)
+        phase_angle = np.random.uniform(-np.pi, np.pi, n_subcarriers)
+
+        frame = CSIFrame(
+            timestamp=int(t * 1e6),
+            rssi=-50,
+            mac="AA:BB:CC:DD:EE:FF",
+            channel=6,
+            n_subcarriers=n_subcarriers,
+            amplitude=amplitude.astype(np.float64),
+            phase=phase_angle.astype(np.float64),
+            complex_csi=(amplitude * np.exp(1j * phase_angle)).astype(np.complex64),
+        )
+
+        yield frame
+        time.sleep(interval)
+        t += interval
+
+
+# =============================================================================
+# REAL-TIME INFERENCE ENGINE
+# =============================================================================
+
+class XFallInferenceEngine:
+    """
+    Real-time XFall inference pipeline.
+
+    Collects CSI frames into a rolling buffer, then runs xfall_inference
+    once enough frames accumulate for a full window.
+    """
+
+    def __init__(self, params: Dict, threshold: float = 0.5,
+                 csv_path: str = "events.csv"):
+        from collections import deque
+        from event_logger import EventLogger
+
+        self.params = params
+        self.threshold = threshold
+
+        # Buffer needs N_Δ + W_T frames for one inference window
+        self.window_size = params['N_Δ'] + params['W_T'] + 50
+        self.step_frames = params['W_T'] // 2  # Run inference every half-window
+
+        self.buffer = deque(maxlen=self.window_size)
+        self._frames_since_inference = 0
+
+        # Initialize model weights
+        self.spatial_weights = init_spatial_weights(
+            params['N_Δ'], params['d_s'], params['n_heads'],
+            params['n_layers_spatial']
+        )
+        self.temporal_weights = init_temporal_weights(
+            params['W_T'], params['d_s'], params['n_heads'],
+            params['n_layers_temporal']
+        )
+        self.mlp_weights = init_mlp_weights(params['d_s'], [128, 64])
+
+        # Event logger and alert FSM
+        self.logger = EventLogger(csv_path)
+        self.alert = AlertFSM(threshold=threshold, logger=self.logger)
+
+        # Stats
+        self._total_frames = 0
+        self._total_inferences = 0
+
+    def add_frame(self, frame: CSIFrame):
+        """Add a CSI frame to the rolling buffer."""
+        self.buffer.append(frame)
+        self._frames_since_inference += 1
+        self._total_frames += 1
+
+        # Run inference when enough frames have accumulated
+        if (len(self.buffer) >= self.window_size and
+                self._frames_since_inference >= self.step_frames):
+            self._run_inference()
+            self._frames_since_inference = 0
+
+    def _run_inference(self):
+        """Run XFall inference on the current buffer."""
+        frames = list(self.buffer)
+
+        prediction, confidence = xfall_inference(
+            frames, self.params,
+            self.spatial_weights, self.temporal_weights,
+            self.mlp_weights, threshold=self.threshold
+        )
+
+        self._total_inferences += 1
+
+        # Display
+        label = "FALL" if prediction == 1 else "normal"
+        bar = "#" * int(confidence * 20) + "." * (20 - int(confidence * 20))
+        state_indicator = {
+            'idle': '[OK]', 'monitoring': '[??]',
+            'fall_alert': '[!!]', 'cooldown': '[..]',
+        }.get(self.alert.state, '[  ]')
+
+        print(f"  [{self._total_inferences:4d}] {state_indicator} "
+              f"{label:6s} {bar} {confidence:.1%}  "
+              f"(frames: {self._total_frames})", end='\r')
+
+        # Log prediction
+        self.logger.log_event(
+            f"prediction_{label}", confidence,
+            f"inference #{self._total_inferences}",
+            silent=True,
+        )
+
+        # Alert logic
+        self.alert.update(prediction, confidence)
+
+    def close(self):
+        self.logger.close()
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+def main():
+    import argparse
+    import time
+
+    parser = argparse.ArgumentParser(
+        description='XFall — Wi-Fi CSI Fall Detection System'
+    )
+    parser.add_argument('--port',
+                        help='Serial port (e.g. COM6, /dev/ttyUSB0)')
+    parser.add_argument('--simulate', action='store_true',
+                        help='Use synthetic CSI data (no hardware needed)')
+    parser.add_argument('--demo', action='store_true',
+                        help='Run algorithm demo with synthetic data')
+    parser.add_argument('--threshold', type=float, default=0.5,
+                        help='Fall confidence threshold (default: 0.5)')
+    parser.add_argument('--csv', default='events.csv',
+                        help='CSV file path for event logging (default: events.csv)')
+    parser.add_argument('--sim-duration', type=float, default=30.0,
+                        help='Simulation duration in seconds (default: 30)')
+    parser.add_argument('--baudrate', type=int, default=115200,
+                        help='Serial baud rate (default: 115200)')
+    parser.add_argument('--debug', action='store_true',
+                        help='Print raw serial lines for debugging')
+    args = parser.parse_args()
+
+    # Demo mode
+    if args.demo:
+        demo()
+        return
+
+    if not args.simulate and not args.port:
+        parser.error("Either --port, --simulate, or --demo is required")
+
+    # Model parameters
     params = {
-        'N_Δ': 50, 'W_T': 100, 'd_s': 32,
-        'n_heads': 4, 'n_layers_spatial': 1, 'n_layers_temporal': 2
+        'N_Δ': 50,
+        'W_T': 100,
+        'd_s': 32,
+        'n_heads': 4,
+        'n_layers_spatial': 1,
+        'n_layers_temporal': 2,
     }
 
-    # Initialize weights
-    spatial_weights = init_spatial_weights(params['N_Δ'], params['d_s'], params['n_heads'], params['n_layers_spatial'])
-    temporal_weights = init_temporal_weights(params['W_T'], params['d_s'], params['n_heads'], params['n_layers_temporal'])
-    mlp_weights = init_mlp_weights(params['d_s'], [128, 64])
+    print("=" * 60)
+    print("  XFall — Wi-Fi CSI Fall Detection")
+    print("=" * 60)
+    print(f"  Window:    {params['N_Δ'] + params['W_T'] + 50} frames")
+    print(f"  Threshold: {args.threshold:.0%}")
+    print(f"  Mode:      {'Simulation' if args.simulate else f'Live ({args.port})'}")
+    print(f"  Events:    {args.csv}")
+    print("=" * 60 + "\n")
 
-    # Inference
-    prediction, confidence = xfall_inference(frames, params, spatial_weights, temporal_weights, mlp_weights)
+    engine = XFallInferenceEngine(
+        params=params,
+        threshold=args.threshold,
+        csv_path=args.csv,
+    )
+
+    try:
+        if args.simulate:
+            start_time = time.time()
+            for frame in simulate_csi_stream():
+                engine.add_frame(frame)
+                if time.time() - start_time >= args.sim_duration:
+                    print(f"\n\n[simulate] Duration reached ({args.sim_duration}s)")
+                    break
+        else:
+            from serial_reader import CSISerialReader
+            reader = CSISerialReader(
+                port=args.port, baudrate=args.baudrate, debug=args.debug
+            )
+            print("[xfall] Press Ctrl+C to stop\n")
+            for frame in reader.stream():
+                engine.add_frame(frame)
+
+    except KeyboardInterrupt:
+        print("\n\n[xfall] Stopped by user")
+    finally:
+        print(f"\n{'=' * 60}")
+        print(f"  Total frames:     {engine._total_frames}")
+        print(f"  Total inferences: {engine._total_inferences}")
+        events = engine.logger.get_recent_events(limit=50)
+        fall_events = [e for e in events if e.get('event_type') == 'fall_detected']
+        print(f"  Fall events:      {len(fall_events)}")
+        print(f"  Events log:       {engine.logger.csv_path}")
+        print(f"{'=' * 60}")
+        engine.close()
+
+
+if __name__ == "__main__":
+    main()
+
