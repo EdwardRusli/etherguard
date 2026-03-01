@@ -1,38 +1,25 @@
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import PairDevice from './pages/PairDevice';
 import Landing from './pages/Landing';
-import AboutUs from './pages/AboutUs';
-import HealthTips from './pages/HealthTips';
-import EmergencyContacts from './pages/EmergencyContacts';
-import Accessibility from './pages/Accessibility';
-import ActivityLog from './pages/ActivityLog';
-import DeviceSettings from './pages/DeviceSettings';
+import Login from './pages/Login';
 import Resources from './pages/Resources';
-import SecurityAddons from './pages/secadd';
-import Addons from './pages/addons';
-import { Activity, PlusCircle, Menu, X } from 'lucide-react';
+import Profile from './pages/Profile';
+import { Activity, PlusCircle, Menu, X, User } from 'lucide-react';
 import { useState } from 'react';
 
 // Navigation component with mobile menu
-function Navigation() {
+function Navigation({ onLogout }: { onLogout: () => void }) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   
-  // Do not show the navbar if we are on the landing page ("/")
-  if (location.pathname === '/') return null;
+  // Do not show the navbar if we are on the landing page ("/") or login page
+  if (location.pathname === '/' || location.pathname === '/login') return null;
 
   const menuItems = [
-    { label: 'Dashboard', href: '/dashboard' },
-    { label: 'Health Tips', href: '/health-tips' },
-    { label: 'Add-ons', href: '/addons' },
-    { label: 'Security', href: '/security' },
-    { label: 'Activity Log', href: '/activity-log' },
-    { label: 'Device Settings', href: '/device-settings' },
-    { label: 'Emergency Contacts', href: '/emergency-contacts' },
-    { label: 'Accessibility', href: '/accessibility' },
+    { label: 'Devices', href: '/devices' },
     { label: 'Resources', href: '/resources' },
-    { label: 'About', href: '/about' },
   ];
 
   return (
@@ -46,7 +33,7 @@ function Navigation() {
         {/* Desktop Menu */}
         <div className="hidden lg:flex gap-2 items-center">
           <div className="flex gap-1">
-            {menuItems.slice(0, 5).map((item) => (
+            {menuItems.slice(0, 3).map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
@@ -60,6 +47,39 @@ function Navigation() {
               </Link>
             ))}
           </div>
+
+          {/* Profile Dropdown */}
+          <div className="relative ml-4">
+            <button
+              onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-700 transition font-medium shadow-lg"
+            >
+              <User size={18} />
+              <span>Profile</span>
+            </button>
+            
+            {profileMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border-2 border-gray-200 rounded-xl shadow-xl py-2 z-50">
+                <Link
+                  to="/profile"
+                  className="block px-4 py-2 text-gray-700 hover:bg-red-50 hover:text-red-600 transition font-medium"
+                  onClick={() => setProfileMenuOpen(false)}
+                >
+                  My Profile
+                </Link>
+                <button
+                  onClick={() => {
+                    onLogout();
+                    setProfileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-gray-700 hover:bg-red-50 hover:text-red-600 transition font-medium"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+
           <Link to="/pair" className="flex items-center gap-1 text-sm font-medium bg-black text-white px-4 py-2 rounded-full hover:bg-gray-800 transition shadow-lg">
             <PlusCircle size={16} />
             Pair Device
@@ -70,6 +90,9 @@ function Navigation() {
         <div className="lg:hidden flex items-center gap-4">
           <Link to="/pair" className="flex items-center gap-1 text-sm font-medium bg-black text-white px-3 py-2 rounded-full hover:bg-gray-800 transition">
             <PlusCircle size={16} />
+          </Link>
+          <Link to="/profile" className="flex items-center gap-1 text-sm font-medium bg-red-600 text-white px-3 py-2 rounded-full hover:bg-red-700 transition">
+            <User size={18} />
           </Link>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -106,24 +129,33 @@ function Navigation() {
 }
 
 function App() {
+  const [userEmail, setUserEmail] = useState<string | null>(() => {
+    // Initialize from localStorage
+    return localStorage.getItem('userEmail');
+  });
+
+  const handleLogin = (email: string) => {
+    setUserEmail(email);
+    localStorage.setItem('userEmail', email);
+  };
+
+  const handleLogout = () => {
+    setUserEmail(null);
+    localStorage.removeItem('userEmail');
+  };
+
   return (
     <Router>
       <div className="min-h-screen bg-linear-to-b from-white to-gray-200 text-gray-900 font-sans">
-        <Navigation />
+        <Navigation onLogout={handleLogout} />
         <main>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/about" element={<AboutUs />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/pair" element={<PairDevice />} />
-            <Route path="/health-tips" element={<HealthTips />} />
-            <Route path="/emergency-contacts" element={<EmergencyContacts />} />
-            <Route path="/accessibility" element={<Accessibility />} />
-            <Route path="/activity-log" element={<ActivityLog />} />
-            <Route path="/device-settings" element={<DeviceSettings />} />
-            <Route path="/resources" element={<Resources />} />
-            <Route path="/security" element={<SecurityAddons />} />
-            <Route path="/addons" element={<Addons />} />
+            <Route path="/login" element={<Login onLogin={handleLogin} />} />
+            <Route path="/devices" element={userEmail ? <Dashboard /> : <Navigate to="/login" />} />
+            <Route path="/pair" element={userEmail ? <PairDevice /> : <Navigate to="/login" />} />
+            <Route path="/resources" element={userEmail ? <Resources /> : <Navigate to="/login" />} />
+            <Route path="/profile" element={userEmail ? <Profile userEmail={userEmail} /> : <Navigate to="/login" />} />
           </Routes>
         </main>
       </div>

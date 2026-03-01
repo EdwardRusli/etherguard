@@ -52,10 +52,10 @@ export default function Landing() {
           </p>
           
           <button 
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/login')}
             className="px-8 py-4 bg-white text-black font-bold rounded-2xl hover:bg-gray-200 transition-all shadow-xl"
           >
-            Launch Dashboard
+            Account Login
           </button>
         </div>
 
