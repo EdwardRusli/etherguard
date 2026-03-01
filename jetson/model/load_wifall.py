@@ -25,6 +25,7 @@ import sys
 import zipfile
 import numpy as np
 import pandas as pd
+import joblib
 from pathlib import Path
 
 # Add parent directory for imports
@@ -261,6 +262,12 @@ def preprocess_wifall(data_dir: Path, output_dir: Path,
     # Save
     np.save(output_dir / 'spectrograms.npy', spectrograms)
     np.save(output_dir / 'labels.npy', labels)
+
+    # Save PCA model for inference pipeline
+    if pca_model is not None:
+        pca_path = output_dir / 'pca_model.pkl'
+        joblib.dump({'pca': pca_model, 'n_components': n_pca_out}, pca_path)
+        print(f"PCA model saved to {pca_path}")
 
     print(f"\n=== Dataset Ready ===")
     print(f"Files processed: {total_files}")

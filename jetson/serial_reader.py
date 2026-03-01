@@ -27,7 +27,7 @@ from csi_parser import CSIFrame, parse_csi_line, COLUMNS_ESP32
 class CSISerialReader:
     """Reads and parses CSI data from ESP32 serial port."""
 
-    def __init__(self, port: str, baudrate: int = 921600, timeout: float = 1.0, debug: bool = False):
+    def __init__(self, port: str, baudrate: int = 115200, timeout: float = 1.0, debug: bool = False):
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout
@@ -49,7 +49,6 @@ class CSISerialReader:
             raise ConnectionError(f"Failed to open {self.port}")
         self._serial.reset_input_buffer()
         print(f"[serial_reader] Connected to {self.port} @ {self.baudrate} baud")
-        print(f"[serial_reader] Press the RST button on the ESP32 now...")
 
     def close(self):
         """Close the serial connection."""
@@ -61,12 +60,13 @@ class CSISerialReader:
     def stream(self) -> Iterator[CSIFrame]:
         """
         Generator that yields parsed CSIFrame objects.
-        Non-CSI lines (boot logs, etc.) are silently skipped.
+        Logs all received lines/frames to the console.
         """
         if not self._serial or not self._serial.is_open:
             self.open()
 
         self._running = True
+        frame_count = 0
         try:
             while self._running:
                 try:
@@ -83,9 +83,14 @@ class CSISerialReader:
 
                     frame = parse_csi_line(line)
                     if frame is not None:
+                        frame_count += 1
+                        print(f"[serial_reader] #{frame_count} | "
+                              f"RSSI={frame.rssi} ch={frame.channel} "
+                              f"subs={frame.n_subcarriers} "
+                              f"amp_mean={frame.amplitude.mean():.1f}")
                         yield frame
-                    elif self.debug and 'CSI_DATA' in line:
-                        print(f"[DEBUG] CSI line found but parse failed!")
+                    else:
+                        print(f"[serial_reader] (non-CSI) {line[:80]}")
 
                 except serial.SerialException as e:
                     if self._running:
@@ -94,7 +99,9 @@ class CSISerialReader:
         except KeyboardInterrupt:
             pass
         finally:
+            print(f"\n[serial_reader] Total frames received: {frame_count}")
             self.close()
+
 
     def __enter__(self):
         self.open()
@@ -157,8 +164,8 @@ def main():
                         help='Output CSV file path (default: ../data/raw/csi_capture.csv)')
     parser.add_argument('-n', '--max-frames', type=int, default=None,
                         help='Stop after N frames (default: run until Ctrl+C)')
-    parser.add_argument('-b', '--baudrate', type=int, default=921600,
-                        help='Serial baud rate (default: 921600)')
+    parser.add_argument('-b', '--baudrate', type=int, default=115200,
+                        help='Serial baud rate (default: 115200)')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Print raw serial lines for debugging')
     args = parser.parse_args()
