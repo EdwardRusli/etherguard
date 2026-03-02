@@ -1,223 +1,252 @@
 /**
- * ESP32 CSI Collector for Fall Detection System
- * Based on ESP32-CSI-Tool by Steven M. Hernandez
- * 
- * This firmware extracts Channel State Information (CSI) from WiFi signals
- * and sends them via USB serial to the Jetson Nano for processing.
- * 
- * Hardware: ESP32 (NodeMCU, TTGO T8, or similar)
- * Connections: USB to Jetson Nano
+ * EtherGuard — ESP32 CSI Fall Detector v3.1
+ *
+ * Collects WiFi Channel State Information and streams it over USB serial
+ * at 115200 baud in ESP32 CSI Toolkit CSV text format.
+ *
+ * CSI Triggering Strategy:
+ *   The ESP32 sends UDP packets to the ROUTER (WiFi gateway) at a fixed
+ *   interval (default 20 ms = 50 Hz). Each transmitted frame causes the
+ *   router to send a WiFi ACK, which the ESP32 receives — triggering the
+ *   CSI RX callback. This gives us a predictable CSI sampling rate.
+ *
+ *   NOTE: Sending to our OWN IP does NOT work — no RX WiFi frame is
+ *   generated because the packet never leaves the ESP32's network stack.
+ *
+ * Output format:
+ *   CSI_DATA,<seq>,<mac>,<rssi>,<rate>,<sig_mode>,<mcs>,<bw>,<sm>,<ns>,
+ *   <agg>,<stbc>,<fec>,<sgi>,<noise>,<ampdu>,<ch>,<sch>,<ts>,
+ *   <ant>,<sig_len>,<rx_state>,<len>,<fw>,"[i0,r0,i1,r1,...]"
+ *
+ * Hardware: ESP32 (NodeMCU, TTGO T8, etc.)
+ * Baud:     115200
  */
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <esp_wifi.h>
+#include <esp_timer.h>
 
-// Configuration
-const char* ROUTER_SSID = "eternacupnoodle";      // Replace with your router SSID
-const char* ROUTER_PASSWORD = "semogasuksesamin"; // Replace with your router password
+// ─────────────────────────────────────────────
+//  CONFIGURATION
+// ─────────────────────────────────────────────
+static const char* WIFI_SSID     = "eternacupnoodle";
+static const char* WIFI_PASSWORD = "semogasuksesamin";
 
-// CSI Configuration
-#define CSI_BUFFER_SIZE 512
-#define CSI_SUBCARRIERS 64   // Number of CSI subcarriers (typically 64 for 20MHz)
-#define OUTPUT_SUBCARRIERS 104  // Output 104 to match WiFall dataset format
+// Ping interval in milliseconds → target CSI rate
+// 20 ms  = 50 Hz
+static const uint32_t PING_INTERVAL_MS  = 20;
 
-// Serial Configuration
-#define SERIAL_BAUD_RATE 19200  // Slower baud rate for debugging
+// UDP port for pings to the router
+static const uint16_t PING_PORT  = 12399;
 
-// Global variables
-bool connected = false;
-unsigned long lastCsiTime = 0;
-uint32_t csiCount = 0;
+// ─────────────────────────────────────────────
+//  GLOBALS
+// ─────────────────────────────────────────────
+static WiFiUDP     udp;
+static IPAddress   gateway_ip;
+static uint32_t    seq          = 0;
+static volatile uint32_t csi_count = 0;
+static uint32_t    ping_count   = 0;
+static uint32_t    drop_count   = 0;
 
-// CSI data structure - outputs 104 values to match WiFall format
-typedef struct {
-    int16_t amplitude[OUTPUT_SUBCARRIERS];  // Padded to 104
-    int16_t phase[OUTPUT_SUBCARRIERS];      // Padded to 104
-    uint32_t timestamp;
-    int8_t rssi;
-    uint8_t channel;
-} CSIData;
+// Simple lock: CSI callback sets this flag while printing
+static volatile bool csi_printing = false;
 
-// CSI callback function
-void wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
-    if (!data) return;
-    
-    csiCount++;
-    
-    // Get CSI data pointer
-    int8_t *csi_ptr = data->buf;
-    uint16_t csi_len = data->len;
-    
-    // Calculate number of subcarriers
-    int num_subcarriers = csi_len / 2;  // Each subcarrier has I and Q components
-    
-    // Prepare data packet - initialize all to zero (padding)
-    CSIData csi_data;
-    memset(&csi_data, 0, sizeof(csi_data));  // Zero-fill entire structure
-    csi_data.timestamp = micros();
-    csi_data.rssi = data->rx_ctrl.rssi;
-    csi_data.channel = data->rx_ctrl.channel;
-    
-    // Extract amplitude and phase from CSI (only first 64 subcarriers)
-    // CSI data format: Interleaved I (real) and Q (imaginary) components
-    for (int i = 0; i < num_subcarriers && i < CSI_SUBCARRIERS; i++) {
-        int8_t real = csi_ptr[i * 2];
-        int8_t imag = csi_ptr[i * 2 + 1];
-        
-        // Calculate amplitude: sqrt(real^2 + imag^2)
-        csi_data.amplitude[i] = (int16_t)sqrt((float)real * real + (float)imag * imag) * 10;
-        
-        // Calculate phase: atan2(imag, real)
-        csi_data.phase[i] = (int16_t)(atan2((float)imag, (float)real) * 1000);  // Scale for integer transmission
+// ─────────────────────────────────────────────
+//  CSI CALLBACK — called from WiFi task context
+// ─────────────────────────────────────────────
+static void wifi_csi_cb(void* ctx, wifi_csi_info_t* info) {
+    if (!info || !info->buf || info->len == 0) return;
+
+    csi_count++;
+
+    // Skip if we're still printing a previous frame
+    if (csi_printing) {
+        drop_count++;
+        return;
     }
-    // Remaining amplitude[64-103] and phase[64-103] are already zero from memset
-    
-    // Send data via serial in binary format
-    // Packet format: [HEADER][TIMESTAMP][RSSI][CHANNEL][AMPLITUDE_DATA][PHASE_DATA]
-    Serial.write(0xAA);  // Header byte 1
-    Serial.write(0x55);  // Header byte 2
-    Serial.write(0x01);  // Packet type: CSI data
-    
-    // Send timestamp (4 bytes)
-    Serial.write((uint8_t)(csi_data.timestamp & 0xFF));
-    Serial.write((uint8_t)((csi_data.timestamp >> 8) & 0xFF));
-    Serial.write((uint8_t)((csi_data.timestamp >> 16) & 0xFF));
-    Serial.write((uint8_t)((csi_data.timestamp >> 24) & 0xFF));
-    
-    // Send RSSI and channel
-    Serial.write((uint8_t)csi_data.rssi);
-    Serial.write(csi_data.channel);
-    
-    // Send amplitude data (104 subcarriers)
-    for (int i = 0; i < OUTPUT_SUBCARRIERS; i++) {
-        Serial.write((uint8_t)(csi_data.amplitude[i] & 0xFF));
-        Serial.write((uint8_t)((csi_data.amplitude[i] >> 8) & 0xFF));
+    csi_printing = true;
+
+    const int8_t* buf = info->buf;
+    const int     len = info->len;
+
+    // MAC address
+    char mac_str[18];
+    snprintf(mac_str, sizeof(mac_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+             info->mac[0], info->mac[1], info->mac[2],
+             info->mac[3], info->mac[4], info->mac[5]);
+
+    // Build the full CSV line into a buffer to minimize Serial calls
+    // Max line size: ~80 header + 128*5 data ≈ 720 bytes, use 1024 to be safe
+    static char line[1400];
+    int pos = 0;
+
+    // Header fields
+    pos += snprintf(line + pos, sizeof(line) - pos,
+        "CSI_DATA,%u,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%u,%d,%d,%d,%d,%d,\"[",
+        seq++,
+        mac_str,
+        info->rx_ctrl.rssi,
+        info->rx_ctrl.rate,
+        info->rx_ctrl.sig_mode,
+        info->rx_ctrl.mcs,
+        info->rx_ctrl.cwb,
+        info->rx_ctrl.smoothing,
+        info->rx_ctrl.not_sounding,
+        info->rx_ctrl.aggregation,
+        info->rx_ctrl.stbc,
+        info->rx_ctrl.fec_coding,
+        info->rx_ctrl.sgi,
+        info->rx_ctrl.noise_floor,
+        info->rx_ctrl.ampdu_cnt,
+        info->rx_ctrl.channel,
+        info->rx_ctrl.secondary_channel,
+        (uint32_t)esp_timer_get_time(),
+        info->rx_ctrl.ant,
+        info->rx_ctrl.sig_len,
+        info->rx_ctrl.rx_state,
+        len,
+        0  // first_word placeholder
+    );
+
+    // CSI data values: [imag0,real0,imag1,real1,...]
+    for (int i = 0; i < len && pos < (int)sizeof(line) - 10; i++) {
+        if (i > 0) line[pos++] = ',';
+        pos += snprintf(line + pos, sizeof(line) - pos, "%d", (int)buf[i]);
     }
-    
-    // Send phase data (104 subcarriers)
-    for (int i = 0; i < OUTPUT_SUBCARRIERS; i++) {
-        Serial.write((uint8_t)(csi_data.phase[i] & 0xFF));
-        Serial.write((uint8_t)((csi_data.phase[i] >> 8) & 0xFF));
-    }
-    
-    // Send checksum
-    uint8_t checksum = 0;
-    checksum ^= 0x01;  // Packet type
-    for (int i = 0; i < 4; i++) checksum ^= ((uint8_t*)&csi_data.timestamp)[i];
-    checksum ^= (uint8_t)csi_data.rssi;
-    checksum ^= csi_data.channel;
-    for (int i = 0; i < OUTPUT_SUBCARRIERS * 2; i++) {
-        checksum ^= ((uint8_t*)csi_data.amplitude)[i];
-    }
-    Serial.write(checksum);
+
+    // Close the array and line
+    pos += snprintf(line + pos, sizeof(line) - pos, "]\"\n");
+
+    // Single Serial.write call — much faster than multiple Serial.print
+    Serial.write((const uint8_t*)line, pos);
+
+    csi_printing = false;
 }
 
+// ─────────────────────────────────────────────
+//  SETUP
+// ─────────────────────────────────────────────
 void setup() {
-    // Initialize serial
-    Serial.begin(SERIAL_BAUD_RATE);
-    delay(1000);
-    
-    Serial.println("\n\n=== ESP32 CSI Fall Detection System ===");
-    Serial.println("Initializing...");
-    
-    // Set WiFi to station mode
+    Serial.begin(115200);
+    delay(500);
+
+    Serial.println();
+    Serial.println("========================================");
+    Serial.println("  EtherGuard ESP32 CSI Collector v3.1  ");
+    Serial.println("  Baud: 115200 | Format: CSV text       ");
+    Serial.println("========================================");
+
+    // ── Connect to WiFi ──
     WiFi.mode(WIFI_STA);
-    Serial.println("WiFi mode set to STA");
-    
-    // Note: WiFi configuration is handled by WiFi.begin() below
-    
-    // Enable CSI
-    wifi_csi_config_t csi_config = {
-        .lltf_en = true,
-        .htltf_en = true,
-        .stbc_htltf2_en = true,
-        .ltf_merge_en = true,
-        .channel_filter_en = false,
-        .manu_scale = false,
-        .shift = 0,
-    };
-    
-    esp_wifi_set_csi(true);
-    esp_wifi_set_csi_config(&csi_config);
-    esp_wifi_set_csi_rx_cb(&wifi_csi_cb, NULL);
-    
-    Serial.println("CSI collection enabled");
-    
-    // Connect to router (acting as CSI transmitter)
-    Serial.print("Connecting to router: ");
-    Serial.println(ROUTER_SSID);
-    
-    WiFi.begin(ROUTER_SSID, ROUTER_PASSWORD);
-    
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.print("Connecting to ");
+    Serial.print(WIFI_SSID);
+
+    int tries = 0;
+    while (WiFi.status() != WL_CONNECTED && tries < 40) {
         delay(500);
         Serial.print(".");
-        attempts++;
+        tries++;
     }
-    
-    if (WiFi.status() == WL_CONNECTED) {
-        connected = true;
-        Serial.println("\nConnected to router!");
-        Serial.print("IP Address: ");
-        Serial.println(WiFi.localIP());
-        Serial.print("Channel: ");
-        Serial.println(WiFi.channel());
-        Serial.println("\nCSI collection started. Send data to Jetson Nano...");
-    } else {
-        Serial.println("\nFailed to connect. Running in passive mode...");
-        // Even without connection, we can still collect CSI from nearby WiFi activity
-        connected = false;
+    Serial.println();
+
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[ERROR] WiFi failed! Restarting...");
+        delay(3000);
+        ESP.restart();
     }
-    
-    // Send initialization complete packet
-    Serial.write(0xAA);
-    Serial.write(0x55);
-    Serial.write(0x02);  // Packet type: System status
-    Serial.write(connected ? 0x01 : 0x00);  // Connection status
-    Serial.write((uint8_t)WiFi.channel());
+
+    gateway_ip = WiFi.gatewayIP();
+
+    Serial.print("[WiFi] IP:      ");  Serial.println(WiFi.localIP());
+    Serial.print("[WiFi] Gateway: ");  Serial.println(gateway_ip);
+    Serial.print("[WiFi] Channel: ");  Serial.println(WiFi.channel());
+    Serial.print("[WiFi] RSSI:    ");  Serial.println(WiFi.RSSI());
+
+    // ── Start UDP ──
+    udp.begin(PING_PORT);
+
+    // ── Enable CSI collection ──
+    wifi_csi_config_t csi_cfg = {};
+    csi_cfg.lltf_en           = true;
+    csi_cfg.htltf_en          = true;
+    csi_cfg.stbc_htltf2_en    = true;
+    csi_cfg.ltf_merge_en      = true;
+    csi_cfg.channel_filter_en = false;
+    csi_cfg.manu_scale        = false;
+    csi_cfg.shift             = 0;
+
+    ESP_ERROR_CHECK(esp_wifi_set_csi(true));
+    ESP_ERROR_CHECK(esp_wifi_set_csi_config(&csi_cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(wifi_csi_cb, NULL));
+
+    Serial.println("[CSI] Collection enabled");
+    Serial.print("[Ping] Target: ");
+    Serial.print(gateway_ip);
+    Serial.print(":");
+    Serial.print(PING_PORT);
+    Serial.print(" @ ");
+    Serial.print(1000 / PING_INTERVAL_MS);
+    Serial.println(" Hz");
+
+    Serial.println();
+    Serial.println("--- CSI stream starting ---");
+    Serial.println();
 }
 
+// ─────────────────────────────────────────────
+//  LOOP — sends pings & heartbeats
+// ─────────────────────────────────────────────
 void loop() {
-    // Main loop - CSI is collected via callback
-    
-    // Send heartbeat every 5 seconds
-    static unsigned long lastHeartbeat = 0;
-    if (millis() - lastHeartbeat > 5000) {
-        lastHeartbeat = millis();
-        
-        // Send heartbeat packet
-        Serial.write(0xAA);
-        Serial.write(0x55);
-        Serial.write(0x03);  // Packet type: Heartbeat
-        Serial.write((uint8_t)(csiCount & 0xFF));
-        Serial.write((uint8_t)((csiCount >> 8) & 0xFF));
-        Serial.write((uint8_t)((csiCount >> 16) & 0xFF));
-        Serial.write((uint8_t)((csiCount >> 24) & 0xFF));
-        Serial.write(connected ? 0x01 : 0x00);
+    static uint32_t last_ping      = 0;
+    static uint32_t last_heartbeat = 0;
+    static uint32_t prev_csi_count = 0;
+
+    uint32_t now = millis();
+
+    // ── Send UDP ping to the router at fixed intervals ──
+    if (now - last_ping >= PING_INTERVAL_MS) {
+        last_ping = now;
+        udp.beginPacket(gateway_ip, PING_PORT);
+        udp.write((const uint8_t*)"P", 1);
+        udp.endPacket();
+        ping_count++;
     }
-    
-    // Check for serial commands from Jetson Nano
-    if (Serial.available() > 0) {
-        char cmd = Serial.read();
-        switch (cmd) {
-            case 'S':  // Status request
-                Serial.write(0xAA);
-                Serial.write(0x55);
-                Serial.write(0x02);
-                Serial.write(connected ? 0x01 : 0x00);
-                Serial.write((uint8_t)WiFi.channel());
-                break;
-            case 'R':  // Reset CSI counter
-                csiCount = 0;
-                Serial.println("CSI counter reset");
-                break;
-            case 'C':  // Reconnect
-                WiFi.reconnect();
-                break;
+
+    // ── Drain any incoming UDP ──
+    while (udp.parsePacket() > 0) {
+        udp.flush();
+    }
+
+    // ── Heartbeat every 5 seconds ──
+    if (now - last_heartbeat >= 5000) {
+        uint32_t cur_csi = csi_count;
+        uint32_t delta   = cur_csi - prev_csi_count;
+        float    rate    = (float)delta / 5.0f;
+
+        // Only print heartbeat when CSI callback is not printing
+        if (!csi_printing) {
+            Serial.println();
+            Serial.print("[HB] CSI_total=");
+            Serial.print(cur_csi);
+            Serial.print(" CSI_rate=");
+            Serial.print(rate, 1);
+            Serial.print(" Hz | pings=");
+            Serial.print(ping_count);
+            Serial.print(" | drops=");
+            Serial.print(drop_count);
+            Serial.print(" | RSSI=");
+            Serial.print(WiFi.RSSI());
+            Serial.print(" dBm | gw=");
+            Serial.println(gateway_ip);
         }
+
+        prev_csi_count = cur_csi;
+        last_heartbeat = now;
     }
-    
+
     delay(1);
 }

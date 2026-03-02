@@ -1,0 +1,13 @@
+# WiFi Fall Detector - Requirements
+
+# Core
+numpy>=1.20.0
+torch>=2.0.0
+pyserial>=3.5
+
+# Optional but recommended
+rich>=13.0.0        # Better terminal display
+tqdm>=4.65.0        # Progress bars
+
+# For visualization (optional)
+matplotlib>=3.5.0

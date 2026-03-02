@@ -1,0 +1,9 @@
+{
+  "room_name": "living_room",
+  "model_type": "lightweight",
+  "window_size": 100,
+  "subcarriers": 104,
+  "num_classes": 4,
+  "best_val_acc": 0.5714285714285714,
+  "timestamp": "2026-03-02T03:00:53.233727"
+}
